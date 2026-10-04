@@ -13,8 +13,10 @@ if "%ORCA_PANE_KEY%"=="" (
 
 "%SystemRoot%\System32\more.com" >"%ORCA_STATUSLINE_PAYLOAD_FILE%" 2>nul
 
-REM Renderiza statusline visual perfeitamente alinhada via Python (funciona DENTRO e FORA do Orca)
-if exist "%USERPROFILE%\.claude\statusline_renderer.py" (
+REM Renderiza statusline visual perfeitamente alinhada (Go nativo com fallback Python)
+if exist "%USERPROFILE%\.claude\statusline.exe" (
+    "%USERPROFILE%\.claude\statusline.exe" < "%ORCA_STATUSLINE_PAYLOAD_FILE%" 2>nul
+) else if exist "%USERPROFILE%\.claude\statusline_renderer.py" (
     python "%USERPROFILE%\.claude\statusline_renderer.py" < "%ORCA_STATUSLINE_PAYLOAD_FILE%" 2>nul
 )
 

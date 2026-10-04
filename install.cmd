@@ -13,21 +13,26 @@ set "TARGET_ORCA=%USERPROFILE%\.orca\agent-hooks"
 if not exist "%TARGET_CLAUDE%" mkdir "%TARGET_CLAUDE%" 2>nul
 if not exist "%TARGET_ORCA%" mkdir "%TARGET_ORCA%" 2>nul
 
-echo [1/3] Copiando renderizador e wrappers...
+echo [1/3] Copiando binarios e renderizadores...
+if exist "%BIN_DIR%\statusline.exe" copy /Y "%BIN_DIR%\statusline.exe" "%TARGET_CLAUDE%\statusline.exe" >nul
 copy /Y "%SRC_DIR%\statusline_renderer.py" "%TARGET_CLAUDE%\statusline_renderer.py" >nul
 copy /Y "%BIN_DIR%\statusline.cmd" "%TARGET_CLAUDE%\statusline.cmd" >nul
 copy /Y "%BIN_DIR%\claude-statusline.cmd" "%TARGET_ORCA%\claude-statusline.cmd" >nul
 
-echo [2/3] Verificando Python no PATH...
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo AVISO: Python nao foi localizado no PATH! Certifique-se de instalar Python 3.8+.
+echo [2/3] Verificando ambiente de execucao...
+if exist "%TARGET_CLAUDE%\statusline.exe" (
+    echo Motor Go nativo detectado (statusline.exe pronto para latencia ultra-baixa).
 ) else (
-    echo Python detectado com sucesso.
+    python --version >nul 2>&1
+    if errorlevel 1 (
+        echo AVISO: Nem Go compilado nem Python foram localizados!
+    ) else (
+        echo Python detectado como fallback.
+    )
 )
 
 echo [3/3] Testando renderizacao...
-echo {"model":{"display_name":"StatusLine-Pro"},"context_window":{"context_window_size":200000,"used_tokens":50000},"usage":{"input_tokens":50000,"output_tokens":250,"cache_read_input_tokens":10000}} | python "%TARGET_CLAUDE%\statusline_renderer.py"
+echo {"model":{"display_name":"StatusLine-Pro"},"context_window":{"context_window_size":200000,"used_tokens":50000},"usage":{"input_tokens":50000,"output_tokens":250,"cache_read_input_tokens":10000}} | call "%BIN_DIR%\statusline.cmd"
 
 echo.
 echo ========================================================

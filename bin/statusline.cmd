@@ -1,6 +1,8 @@
 @echo off
 setlocal
-if exist "%USERPROFILE%\.claude\statusline_renderer.py" (
+if exist "%USERPROFILE%\.claude\statusline.exe" (
+    "%USERPROFILE%\.claude\statusline.exe"
+) else if exist "%USERPROFILE%\.claude\statusline_renderer.py" (
     python "%USERPROFILE%\.claude\statusline_renderer.py"
 )
 exit /b 0
