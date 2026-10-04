@@ -2,14 +2,15 @@
 """statusline_renderer.py
 Painel de telemetria em 4 linhas com alinhamento visual de alta fidelidade:
 - Linha 1: MODELO + Projeto raiz │ BRANCH + Git dirtiness
-- Linha 2: JANELA (barra alta definicao, %, tokens) │ LIVRE + Alerta de compactacao
-- Linha 3: TURNO (In, Out, Cache) │ CUSTO + Duracao
-- Linha 4: JANELA 5H (barra, %, tempo para reset) │ SEMANAL (barra, %, dias para reset)
+- Linha 2: JANELA (barra, %, tokens) │ LIVRE + Alerta de compactacao
+- Linha 3: LIM 5H (barra, %, reset) │ SEMANAL (barra, %, reset)
+- Linha 4: TURNO (#N, In, Out, Cache, Custo) │ GRAFO (Nós, Arestas, Última atualização)
 """
 import datetime
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 import time
@@ -85,10 +86,68 @@ def make_bar(pct: float, total_blocks: int = 10) -> str:
     empty = total_blocks - filled
     return ("█" * filled) + ("░" * empty)
 
-def get_rate_limits(data: dict) -> dict:
-    """Extrai ou calcula rate limits de 5h e semanal via payload ou cache local."""
-    rl = data.get("rate_limits") or {}
+def get_session_turn_count(data: dict) -> int:
+    turn = data.get("turn") or data.get("turn_count") or data.get("step")
+    if turn is not None:
+        try:
+            return int(turn)
+        except Exception:
+            pass
 
+    cache_file = os.path.expanduser("~/.claude/session_turns.json")
+    now = time.time()
+    count = 1
+
+    try:
+        if os.path.exists(cache_file):
+            with open(cache_file, "r", encoding="utf-8") as f:
+                cdata = json.load(f)
+                last_time = cdata.get("timestamp", 0)
+                if now - last_time < 3600:
+                    count = cdata.get("count", 0) + 1
+        with open(cache_file, "w", encoding="utf-8") as f:
+            json.dump({"count": count, "timestamp": now}, f)
+    except Exception:
+        pass
+
+    return count
+
+def get_graph_summary() -> str:
+    db_path = os.path.join(os.getcwd(), ".code-review-graph", "graph.db")
+    if not os.path.exists(db_path):
+        db_path = os.path.expanduser("~/.code-review-graph/graph.db")
+    if not os.path.exists(db_path):
+        return "inativo"
+
+    try:
+        conn = sqlite3.connect(db_path, timeout=0.3)
+        c = conn.cursor()
+        c.execute("SELECT count(*) FROM nodes")
+        nodes = c.fetchone()[0]
+        c.execute("SELECT count(*) FROM edges")
+        edges = c.fetchone()[0]
+
+        last_up = ""
+        try:
+            c.execute("SELECT value FROM metadata WHERE key='last_updated'")
+            row = c.fetchone()
+            if row:
+                raw_time = row[0]
+                if "T" in raw_time:
+                    last_up = raw_time.split("T")[1][:5]
+                else:
+                    last_up = raw_time[:5]
+        except Exception:
+            pass
+
+        conn.close()
+        time_part = f" {last_up}" if last_up else ""
+        return f"{format_num(nodes)} nós · {format_num(edges)} arestas{time_part}"
+    except Exception:
+        return "inativo"
+
+def get_rate_limits(data: dict) -> dict:
+    rl = data.get("rate_limits") or {}
     five_hour = rl.get("five_hour") or rl.get("five_hours") or {}
     weekly = rl.get("weekly") or rl.get("seven_day") or {}
 
@@ -105,8 +164,7 @@ def get_rate_limits(data: dict) -> dict:
     if os.path.exists(cache_path):
         try:
             with open(cache_path, "r", encoding="utf-8") as f:
-                cached = json.load(f)
-                return cached
+                return json.load(f)
         except Exception:
             pass
 
@@ -191,18 +249,23 @@ def main():
     wk_color = GREEN if wk_pct < 70 else (YELLOW if wk_pct < 85 else RED)
     wk_bar = make_bar(wk_pct, 8)
 
+    turns_count = get_session_turn_count(data)
+    graph_info = get_graph_summary()
+
     LEFT_WIDTH = 56
     SEP = f" {DIM}│{RESET}   "
 
     left1 = f"{BOLD}MODELO:{RESET}  {CYAN}{model}{RESET} {DIM}({project_name}){RESET}"
-    left2 = f"{BOLD}JANELA:{RESET}  {color}{bar_str}{RESET} {color}{pct:5.2f}%{RESET} {DIM}({format_num(ctx_tokens)} / {format_num(max_tokens)}){RESET}"
-    left3 = f"{BOLD}TURNO: {RESET}  In: {BLUE}{format_num(in_tokens)}{RESET}  Out: {MAGENTA}{format_num(out_tokens)}{RESET}  Cache: {CYAN}{format_num(cache_tokens)}{RESET}"
-    left4 = f"{BOLD}LIM 5H:{RESET}  {fh_color}{fh_bar}{RESET} {fh_color}{fh_pct:5.1f}%{RESET} {DIM}(reseta em {fh_reset}){RESET}"
-
     right1 = f"{BOLD}GIT:    {RESET}  {CYAN}{git_info}{RESET}"
+
+    left2 = f"{BOLD}JANELA:{RESET}  {color}{bar_str}{RESET} {color}{pct:5.2f}%{RESET} {DIM}({format_num(ctx_tokens)} / {format_num(max_tokens)}){RESET}"
     right2 = f"{BOLD}LIVRE:  {RESET}  {WHITE}{format_num(rem_tokens)}{RESET}{alert_txt}"
-    right3 = f"{BOLD}CUSTO:  {RESET}  {GREEN}{cost_str}{RESET}"
-    right4 = f"{BOLD}SEMANAL:{RESET}  {wk_color}{wk_bar}{RESET} {wk_color}{wk_pct:5.1f}%{RESET} {DIM}(reseta em {wk_reset}){RESET}"
+
+    left3 = f"{BOLD}LIM 5H:{RESET}  {fh_color}{fh_bar}{RESET} {fh_color}{fh_pct:5.1f}%{RESET} {DIM}(reseta em {fh_reset}){RESET}"
+    right3 = f"{BOLD}SEMANAL:{RESET}  {wk_color}{wk_bar}{RESET} {wk_color}{wk_pct:5.1f}%{RESET} {DIM}(reseta em {wk_reset}){RESET}"
+
+    left4 = f"{BOLD}TURNO: {RESET}  {WHITE}#{turns_count}{RESET} {DIM}│{RESET} In: {BLUE}{format_num(in_tokens)}{RESET} Out: {MAGENTA}{format_num(out_tokens)}{RESET} {DIM}│{RESET} {GREEN}{cost_str}{RESET}"
+    right4 = f"{BOLD}GRAFO:  {RESET}  {CYAN}{graph_info}{RESET}"
 
     line1 = f"  {pad_to(left1, LEFT_WIDTH)}{SEP}{right1}"
     line2 = f"  {pad_to(left2, LEFT_WIDTH)}{SEP}{right2}"

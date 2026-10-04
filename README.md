@@ -4,14 +4,14 @@ Statusline visual de alta densidade, alta fidelidade e tempo real para **Claude 
 
 ---
 
-## 📸 Preview no Terminal (Layout 4 Linhas)
+## 📸 Preview no Terminal (Layout 4 Linhas Integrado)
 
 ```text
 ────────────────────────────────────────────────────────────────────────────────────────────────
   MODELO:  code-fast (ecossistema-aidd)                     │   GIT:     aidd/calibracao-pipe.. [*39]
   JANELA:  ██████░░░░  62.32% (124.645 / 200.000)            │   LIVRE:   75.355
-  TURNO:   In: 124.645  Out: 310  Cache: 0                  │   CUSTO:   $0.00
   LIM 5H:  ███░░░░░   42.0% (reseta em 2h 15m)               │   SEMANAL: ██░░░░░░   28.5% (reseta em 4d 10h)
+  TURNO:   #4 │ In: 124.645 Out: 310 │ $0.00                 │   GRAFO:   27.037 nós · 227.675 arestas 15:39
 ────────────────────────────────────────────────────────────────────────────────────────────────
 ```
 
@@ -24,11 +24,13 @@ Statusline visual de alta densidade, alta fidelidade e tempo real para **Claude 
 - **Alinhamento Óptico Imune a Códigos ANSI**: Cálculo de largura real descartando sequências de escape ANSI e caracteres de largura dupla via `unicodedata.east_asian_width`.
 - **Métricas Completas do Contexto**:
   - **Tokens de Entrada / Saída / Cache**: Valores exatos com separadores de milhar (`.`).
+  - **Contador de Turnos da Sessão**: Exibição do número sequencial de turnos ativos (`#N`).
   - **Saldo Livre**: Contagem decrescente exata de tokens restantes na janela.
   - **Alerta de Compactação Dinâmico**: Aviso `[COMPACTA EM BREVE]` quando o uso ultrapassa 85%.
   - **Git Status em Tempo Real**: Nome da branch ativa e contagem de alterações pendentes (`*modificados`, `+não-rastreados`).
   - **Custo Acumulado**: Exibição monetária exata por sessão.
   - **Rate Limits (5 Horas e Semanal)**: Barras exclusivas, percentual consumido e contagem regressiva para renovação da cota.
+  - **Telemetria do Grafo de Conhecimento (`code-review-graph`)**: Detecção automática de nós indexados, arestas mapeadas e horário da última sincronização.
   - **Workspace / Projeto**: Identificação imediata da pasta raiz em uso.
 - **Compatibilidade Dual**: Opera perfeitamente dentro do **Orca ADE** (preservando telemetria interna e webhooks) e em terminais avulsos (PowerShell, Windows Terminal, Git Bash).
 
