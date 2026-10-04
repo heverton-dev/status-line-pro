@@ -407,10 +407,29 @@ func main() {
 
 	var inTokens int64 = ctxTokens
 	var outTokens int64 = 0
-	_ = outTokens
+	var cacheReadTokens int64 = 0
+	_ = cacheReadTokens
+
+	if cw, ok := data["context_window"].(map[string]interface{}); ok {
+		if tot, ok := cw["total_output_tokens"].(float64); ok && tot > 0 {
+			outTokens = int64(tot)
+		}
+		if cu, ok := cw["current_usage"].(map[string]interface{}); ok {
+			if ot, ok := cu["output_tokens"].(float64); ok && outTokens == 0 {
+				outTokens = int64(ot)
+			}
+			if cr, ok := cu["cache_read_input_tokens"].(float64); ok {
+				cacheReadTokens = int64(cr)
+			}
+		}
+	}
+
 	if u, ok := data["usage"].(map[string]interface{}); ok {
-		if ot, ok := u["output_tokens"].(float64); ok {
+		if ot, ok := u["output_tokens"].(float64); ok && outTokens == 0 {
 			outTokens = int64(ot)
+		}
+		if cr, ok := u["cache_read_input_tokens"].(float64); ok && cacheReadTokens == 0 {
+			cacheReadTokens = int64(cr)
 		}
 	}
 
@@ -451,9 +470,13 @@ func main() {
 
 	costStr := "$0.00"
 	if cObj, ok := data["cost"].(map[string]interface{}); ok {
-		if t, ok := cObj["total"].(float64); ok {
+		if t, ok := cObj["total_cost_usd"].(float64); ok {
+			costStr = fmt.Sprintf("$%.2f", t)
+		} else if t, ok := cObj["total"].(float64); ok {
 			costStr = fmt.Sprintf("$%.2f", t)
 		}
+	} else if t, ok := data["total_cost"].(float64); ok {
+		costStr = fmt.Sprintf("$%.2f", t)
 	}
 
 	fh, wk := getRateLimits(data, pct, inTokens)
