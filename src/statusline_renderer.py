@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """statusline_renderer.py
 Painel de telemetria em 4 linhas com alinhamento visual de alta fidelidade:
-- Cabeçalho: [ STATUS LINE PRO ── ORCA ADE ── HH:MM ]
+- Cabeçalho dinâmico: [ STATUS LINE PRO ── <AMBIENTE> ── <CONTA> ── HH:MM ]
 - Linha 1: MODELO + Projeto raiz │ BRANCH + Git dirtiness
 - Linha 2: JANELA (barra, %, tokens) │ LIVRE + Alerta de compactacao
 - Linha 3: LIM 5H (barra, %, reset) │ SEMANAL (barra, %, reset)
@@ -81,6 +81,28 @@ def get_project_name() -> str:
         return os.path.basename(os.getcwd()) or "workspace"
     except Exception:
         return "workspace"
+
+def get_account_and_env() -> tuple:
+    """Detecta o ambiente real de execução e os dados da conta logada."""
+    is_orca = bool(os.environ.get("ORCA_PANE_KEY") or os.environ.get("ORCA_AGENT_HOOK_PORT"))
+    env_label = "ORCA ADE" if is_orca else "TERMINAL"
+
+    account_label = "claude"
+    claude_json_path = os.path.expanduser("~/.claude.json")
+    if os.path.exists(claude_json_path):
+        try:
+            with open(claude_json_path, "r", encoding="utf-8") as f:
+                cdata = json.load(f)
+                oa = cdata.get("oauthAccount") or {}
+                email = oa.get("emailAddress")
+                if email:
+                    account_label = email
+                elif oa.get("displayName"):
+                    account_label = oa.get("displayName")
+        except Exception:
+            pass
+
+    return env_label, account_label
 
 def make_bar(pct: float, total_blocks: int = 10) -> str:
     filled = max(0, min(total_blocks, int((pct / 100.0) * total_blocks)))
@@ -307,6 +329,7 @@ def main():
 
     turns_count = get_session_turn_count(data)
     graph_info = get_graph_summary()
+    env_label, account_label = get_account_and_env()
 
     LEFT_WIDTH = 56
     SEP = f" {DIM}│{RESET}   "
@@ -329,7 +352,7 @@ def main():
     line4 = f"  {pad_to(left4, LEFT_WIDTH)}{SEP}{right4}"
 
     now_hm = datetime.datetime.now().strftime("%H:%M")
-    header_title = f" [ {CYAN}STATUS LINE PRO{RESET} {DIM}──{RESET} {WHITE}ORCA ADE{RESET} {DIM}──{RESET} {DIM}{now_hm}{RESET} ] "
+    header_title = f" [ {CYAN}STATUS LINE PRO{RESET} {DIM}──{RESET} {WHITE}{env_label}{RESET} {DIM}──{RESET} {GREEN}{account_label}{RESET} {DIM}──{RESET} {DIM}{now_hm}{RESET} ] "
     ht_len = visible_width(header_title)
     TOTAL_WIDTH = 96
     fill_right = max(0, TOTAL_WIDTH - 4 - ht_len)
