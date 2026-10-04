@@ -1,0 +1,18 @@
+{
+  "name": "status-line-pro",
+  "version": "1.0.0",
+  "description": "High-density real-time Unicode statusline for Claude Code and Orca ADE",
+  "main": "src/statusline_renderer.py",
+  "scripts": {
+    "test": "echo '{\"model\":{\"display_name\":\"Test\"},\"context_window\":{\"context_window_size\":200000,\"used_tokens\":50000}}' | python src/statusline_renderer.py"
+  },
+  "keywords": [
+    "claude-code",
+    "statusline",
+    "terminal",
+    "orca-ade",
+    "cli"
+  ],
+  "author": "Heverton-dev",
+  "license": "MIT"
+}
