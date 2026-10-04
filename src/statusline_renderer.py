@@ -2,7 +2,7 @@
 """statusline_renderer.py
 Painel de telemetria em 4 linhas com alinhamento visual de alta fidelidade:
 - Cabeçalho dinâmico: [ STATUS LINE PRO ── <AMBIENTE> ── <CONTA> ── HH:MM ]
-- Linha 1: MODELO + Projeto raiz │ BRANCH + Git dirtiness
+- Linha 1: MODELO (provedor/modelo + projeto raiz) │ BRANCH + Git dirtiness
 - Linha 2: JANELA (barra, %, tokens) │ LIVRE + Alerta de compactacao
 - Linha 3: LIM 5H (barra, %, reset) │ SEMANAL (barra, %, reset)
 - Linha 4: TURNO (#N, In, Out, Custo) │ GRAFO (Nós, Arestas, Última atualização)
@@ -83,7 +83,6 @@ def get_project_name() -> str:
         return "workspace"
 
 def get_account_and_env() -> tuple:
-    """Detecta o ambiente real de execução e os dados da conta logada."""
     is_orca = bool(os.environ.get("ORCA_PANE_KEY") or os.environ.get("ORCA_AGENT_HOOK_PORT"))
     env_label = "ORCA ADE" if is_orca else "TERMINAL"
 
@@ -103,6 +102,35 @@ def get_account_and_env() -> tuple:
             pass
 
     return env_label, account_label
+
+def get_provider_and_model(data: dict) -> str:
+    """Extrai ou infere a notação Provedor/Modelo."""
+    m_obj = data.get("model") or {}
+    m_name = m_obj.get("display_name") or m_obj.get("id") or data.get("model_id") or "Claude"
+    provider = m_obj.get("provider") or data.get("provider")
+
+    if not provider:
+        m_lower = str(m_name).lower()
+        if any(k in m_lower for k in ["claude", "sonnet", "opus", "haiku"]):
+            provider = "Anthropic"
+        elif any(k in m_lower for k in ["gpt", "o1", "o3", "openai"]):
+            provider = "OpenAI"
+        elif any(k in m_lower for k in ["gemini"]):
+            provider = "Google"
+        elif any(k in m_lower for k in ["deepseek"]):
+            provider = "DeepSeek"
+        elif any(k in m_lower for k in ["qwen"]):
+            provider = "Qwen"
+        elif any(k in m_lower for k in ["mistral"]):
+            provider = "Mistral"
+        elif any(k in m_lower for k in ["code-fast", "code-balanced", "code-smart"]):
+            provider = "9Router"
+        else:
+            provider = "Anthropic"
+
+    if "/" in str(m_name):
+        return str(m_name)
+    return f"{provider}/{m_name}"
 
 def make_bar(pct: float, total_blocks: int = 10) -> str:
     filled = max(0, min(total_blocks, int((pct / 100.0) * total_blocks)))
@@ -266,7 +294,7 @@ def main():
     except Exception:
         return
 
-    model = data.get("model", {}).get("display_name") or data.get("model", {}).get("id") or "Claude"
+    model_display = get_provider_and_model(data)
     max_tokens = data.get("context_window", {}).get("context_window_size") or 200000
 
     ctx_tokens = (
@@ -334,7 +362,7 @@ def main():
     LEFT_WIDTH = 56
     SEP = f" {DIM}│{RESET}   "
 
-    left1 = f"{BOLD}MODELO:{RESET}  {CYAN}{model}{RESET} {DIM}({project_name}){RESET}"
+    left1 = f"{BOLD}MODELO:{RESET}  {CYAN}{model_display}{RESET} {DIM}({project_name}){RESET}"
     right1 = f"{BOLD}GIT:    {RESET}  {CYAN}{git_info}{RESET}"
 
     left2 = f"{BOLD}JANELA:{RESET}  {color}{bar_str}{RESET} {color}{pct:5.2f}%{RESET} {DIM}({format_num(ctx_tokens)} / {format_num(max_tokens)}){RESET}"
